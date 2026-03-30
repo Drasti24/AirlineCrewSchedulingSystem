@@ -1,11 +1,15 @@
 #include "ServerConnection.h"
 #include "Packets.h"
 #include "StateMachine.h"
+#include "ScheduleRepository.h"
 
 int main()
 {
     ServerConnection server;
     StateMachine stateMachine;
+    ScheduleRepository repository;
+
+    repository.LoadSampleData();
 
     if (!server.Initialize())
     {
@@ -30,7 +34,11 @@ int main()
         return 1;
     }
 
-    Logger::Log("server_log.txt", "RX", "Received CONNECT_REQUEST");
+    Logger::Log(
+        "server_log.txt",
+        "RX",
+        "CONNECT_REQUEST ClientName=" + string(connectRequest.clientName)
+    );
 
     ConnectResponsePacket connectResponse{};
     connectResponse.header.packetType = CONNECT_RESPONSE;
@@ -58,77 +66,124 @@ int main()
         return 1;
     }
 
-    Logger::Log("server_log.txt", "TX", "Sent CONNECT_RESPONSE");
+    string connectStatus = (connectResponse.statusCode == STATUS_OK) ? "OK" : "INVALID";
+
+    Logger::Log(
+        "server_log.txt",
+        "TX",
+        "CONNECT_RESPONSE Status=" + connectStatus +
+        " Message=" + string(connectResponse.message)
+    );
 
     cout << "Current server state: " << stateMachine.GetCurrentState() << endl;
 
-    ScheduleRequestPacket scheduleRequest{};
-    if (!server.ReceiveData(reinterpret_cast<char*>(&scheduleRequest), sizeof(scheduleRequest)))
-    {
-        cout << "Failed to receive schedule request.\n";
-        server.Close();
-        return 1;
-    }
 
-    Logger::Log("server_log.txt", "RX", "Received GET_SCHEDULE_REQUEST");
-
-    if (scheduleRequest.header.packetType == GET_SCHEDULE_REQUEST)
+    while (true)
     {
+        ScheduleRequestPacket scheduleRequest{};
+
+        bool received = server.ReceiveData(reinterpret_cast<char*>(&scheduleRequest), sizeof(scheduleRequest));
+        if (!received)
+        {
+            cout << "Client disconnected.\n";
+            Logger::Log("server_log.txt", "INFO", "Client disconnected");
+            break;
+        }
+
+        Logger::Log(
+            "server_log.txt",
+            "RX",
+            "GET_SCHEDULE_REQUEST PilotID=" + to_string(scheduleRequest.pilotId)
+        );
+
+        if (scheduleRequest.header.packetType != GET_SCHEDULE_REQUEST)
+        {
+            cout << "Invalid schedule request received.\n";
+            Logger::Log("server_log.txt", "ERROR", "Invalid packet received from client");
+            stateMachine.SetState(STATE_ERROR);
+            break;
+        }
+
         stateMachine.SetState(STATE_PROCESSING_REQUEST);
 
         ScheduleResponsePacket scheduleResponse{};
         scheduleResponse.header.packetType = GET_SCHEDULE_RESPONSE;
         scheduleResponse.header.dataSize = sizeof(scheduleResponse);
-        scheduleResponse.statusCode = STATUS_OK;
         scheduleResponse.pilotId = scheduleRequest.pilotId;
-        strcpy_s(scheduleResponse.pilotName, "Captain Smith");
-        scheduleResponse.flightCount = 2;
 
-        FlightInfo flights[2]{};
+        PilotSchedule pilotSchedule{};
+        bool found = repository.GetScheduleByPilotId(scheduleRequest.pilotId, pilotSchedule);
 
-        flights[0].flightId = 101;
-        strcpy_s(flights[0].origin, "Toronto");
-        strcpy_s(flights[0].destination, "New York");
-        strcpy_s(flights[0].date, "2026-03-30");
-
-        flights[1].flightId = 205;
-        strcpy_s(flights[1].origin, "Montreal");
-        strcpy_s(flights[1].destination, "Chicago");
-        strcpy_s(flights[1].date, "2026-03-31");
-
-        stateMachine.SetState(STATE_SENDING_SCHEDULE);
-
-        if (!server.SendData(reinterpret_cast<char*>(&scheduleResponse), sizeof(scheduleResponse)))
+        if (found)
         {
-            cout << "Failed to send schedule response.\n";
-            server.Close();
-            return 1;
-        }
+            scheduleResponse.statusCode = STATUS_OK;
+            strcpy_s(scheduleResponse.pilotName, pilotSchedule.pilotName);
+            scheduleResponse.flightCount = static_cast<int>(pilotSchedule.flights.size());
 
-        Logger::Log("server_log.txt", "TX", "Sent GET_SCHEDULE_RESPONSE");
+            stateMachine.SetState(STATE_SENDING_SCHEDULE);
 
-        for (int i = 0; i < scheduleResponse.flightCount; i++)
-        {
-            if (!server.SendData(reinterpret_cast<char*>(&flights[i]), sizeof(FlightInfo)))
+            if (!server.SendData(reinterpret_cast<char*>(&scheduleResponse), sizeof(scheduleResponse)))
             {
-                cout << "Failed to send flight info.\n";
-                server.Close();
-                return 1;
+                cout << "Failed to send schedule response.\n";
+                Logger::Log("server_log.txt", "ERROR", "Failed to send GET_SCHEDULE_RESPONSE");
+                break;
             }
 
-            Logger::Log("server_log.txt", "TX", "Sent FLIGHT_INFO");
+            Logger::Log(
+                "server_log.txt",
+                "TX",
+                "GET_SCHEDULE_RESPONSE PilotID=" + to_string(scheduleResponse.pilotId) +
+                " Status=OK FlightCount=" + to_string(scheduleResponse.flightCount)
+            );
+
+            for (const auto& flight : pilotSchedule.flights)
+            {
+                if (!server.SendData(reinterpret_cast<const char*>(&flight), sizeof(FlightInfo)))
+                {
+                    cout << "Failed to send flight info.\n";
+                    Logger::Log("server_log.txt", "ERROR", "Failed to send FLIGHT_INFO");
+                    break;
+                }
+
+                Logger::Log(
+                    "server_log.txt",
+                    "TX",
+                    "FLIGHT_INFO FlightID=" + to_string(flight.flightId) +
+                    " Origin=" + string(flight.origin) +
+                    " Destination=" + string(flight.destination) +
+                    " Date=" + string(flight.date)
+                );
+            }
+
+            cout << "Schedule sent successfully for Pilot ID " << scheduleRequest.pilotId << ".\n";
+            stateMachine.SetState(STATE_AUTHENTICATED);
+        }
+        else
+        {
+            scheduleResponse.statusCode = STATUS_NOT_FOUND;
+            strcpy_s(scheduleResponse.pilotName, "Unknown");
+            scheduleResponse.flightCount = 0;
+
+            if (!server.SendData(reinterpret_cast<char*>(&scheduleResponse), sizeof(scheduleResponse)))
+            {
+                cout << "Failed to send not found response.\n";
+                Logger::Log("server_log.txt", "ERROR", "Failed to send not found response");
+                break;
+            }
+
+            Logger::Log(
+                "server_log.txt",
+                "TX",
+                "GET_SCHEDULE_RESPONSE PilotID=" + to_string(scheduleRequest.pilotId) +
+                " Status=NOT_FOUND FlightCount=0"
+            );
+
+            cout << "Pilot ID " << scheduleRequest.pilotId << " not found.\n";
+            stateMachine.SetState(STATE_AUTHENTICATED);
         }
 
-        stateMachine.SetState(STATE_AUTHENTICATED);
-        cout << "Schedule sent successfully.\n";
+        cout << "Current server state: " << stateMachine.GetCurrentState() << endl;
     }
-    else
-    {
-        cout << "Invalid schedule request received.\n";
-        stateMachine.SetState(STATE_ERROR);
-    }
-
-    cout << "Current server state: " << stateMachine.GetCurrentState() << endl;
 
     system("pause");
     server.Close();
