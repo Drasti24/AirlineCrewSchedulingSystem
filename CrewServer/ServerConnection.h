@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Common.h"
-#include "Logger.h"
+#include "../Common.h"
+#include "../Logger.h"
 
 class ServerConnection
 {

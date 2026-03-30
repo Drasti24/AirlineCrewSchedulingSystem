@@ -1,6 +1,6 @@
 #include "ServerConnection.h"
-#include "Packets.h"
-#include "StateMachine.h"
+#include "../Packets.h"
+#include "../StateMachine.h"
 #include "ScheduleRepository.h"
 
 int main()
@@ -48,18 +48,18 @@ int main()
     {
         stateMachine.SetState(STATE_AUTHENTICATED);
         connectResponse.statusCode = STATUS_OK;
-        strcpy_s(connectResponse.message, "Connection verified");
+        strcpy_s(connectResponse.message, sizeof(connectResponse.message), "Connection verified");
         cout << "Client verified successfully.\n";
     }
     else
     {
         stateMachine.SetState(STATE_ERROR);
         connectResponse.statusCode = STATUS_INVALID;
-        strcpy_s(connectResponse.message, "Invalid connection request");
+        strcpy_s(connectResponse.message, sizeof(connectResponse.message), "Invalid connection request");
         cout << "Invalid connection request received.\n";
     }
 
-    if (!server.SendData(reinterpret_cast<char*>(&connectResponse), sizeof(connectResponse)))
+    if (!server.SendData(reinterpret_cast<const char*>(&connectResponse), sizeof(connectResponse)))
     {
         cout << "Failed to send connection response.\n";
         server.Close();
@@ -76,7 +76,6 @@ int main()
     );
 
     cout << "Current server state: " << stateMachine.GetCurrentState() << endl;
-
 
     while (true)
     {
@@ -117,31 +116,31 @@ int main()
         if (found)
         {
             scheduleResponse.statusCode = STATUS_OK;
-            strcpy_s(scheduleResponse.pilotName, pilotSchedule.pilotName);
+            strcpy_s(scheduleResponse.pilotName, sizeof(scheduleResponse.pilotName), pilotSchedule.pilotName);
             scheduleResponse.flightCount = static_cast<int>(pilotSchedule.flights.size());
 
-            stateMachine.SetState(STATE_SENDING_SCHEDULE);
-
-            if (!server.SendData(reinterpret_cast<char*>(&scheduleResponse), sizeof(scheduleResponse)))
+            if (!server.SendData(reinterpret_cast<const char*>(&scheduleResponse), sizeof(scheduleResponse)))
             {
-                cout << "Failed to send schedule response.\n";
-                Logger::Log("server_log.txt", "ERROR", "Failed to send GET_SCHEDULE_RESPONSE");
+                cout << "Failed to send schedule response header.\n";
+                Logger::Log("server_log.txt", "ERROR", "Failed to send schedule response");
                 break;
             }
 
             Logger::Log(
                 "server_log.txt",
                 "TX",
-                "GET_SCHEDULE_RESPONSE PilotID=" + to_string(scheduleResponse.pilotId) +
+                "GET_SCHEDULE_RESPONSE PilotID=" + to_string(scheduleRequest.pilotId) +
                 " Status=OK FlightCount=" + to_string(scheduleResponse.flightCount)
             );
 
+            stateMachine.SetState(STATE_SENDING_SCHEDULE);
+
             for (const auto& flight : pilotSchedule.flights)
             {
-                if (!server.SendData(reinterpret_cast<const char*>(&flight), sizeof(FlightInfo)))
+                if (!server.SendData(reinterpret_cast<const char*>(&flight), sizeof(flight)))
                 {
-                    cout << "Failed to send flight info.\n";
-                    Logger::Log("server_log.txt", "ERROR", "Failed to send FLIGHT_INFO");
+                    cout << "Failed to send flight information.\n";
+                    Logger::Log("server_log.txt", "ERROR", "Failed to send flight info");
                     break;
                 }
 
@@ -161,10 +160,10 @@ int main()
         else
         {
             scheduleResponse.statusCode = STATUS_NOT_FOUND;
-            strcpy_s(scheduleResponse.pilotName, "Unknown");
+            strcpy_s(scheduleResponse.pilotName, sizeof(scheduleResponse.pilotName), "Unknown");
             scheduleResponse.flightCount = 0;
 
-            if (!server.SendData(reinterpret_cast<char*>(&scheduleResponse), sizeof(scheduleResponse)))
+            if (!server.SendData(reinterpret_cast<const char*>(&scheduleResponse), sizeof(scheduleResponse)))
             {
                 cout << "Failed to send not found response.\n";
                 Logger::Log("server_log.txt", "ERROR", "Failed to send not found response");
@@ -185,7 +184,6 @@ int main()
         cout << "Current server state: " << stateMachine.GetCurrentState() << endl;
     }
 
-    system("pause");
     server.Close();
     return 0;
 }

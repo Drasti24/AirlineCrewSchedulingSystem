@@ -1,5 +1,5 @@
 #include "ServerConnection.h"
-#include "Constants.h"
+#include "../Constants.h"
 
 ServerConnection::ServerConnection()
 {

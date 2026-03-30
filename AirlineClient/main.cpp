@@ -1,5 +1,6 @@
 #include "ClientConnection.h"
-#include "Packets.h"
+#include "../Packets.h"
+#include <limits>
 
 int main()
 {
@@ -20,9 +21,9 @@ int main()
     ConnectRequestPacket connectRequest{};
     connectRequest.header.packetType = CONNECT_REQUEST;
     connectRequest.header.dataSize = sizeof(connectRequest);
-    strcpy_s(connectRequest.clientName, "AirlineClientApp");
+    strcpy_s(connectRequest.clientName, sizeof(connectRequest.clientName), "AirlineClientApp");
 
-    if (!client.SendData(reinterpret_cast<char*>(&connectRequest), sizeof(connectRequest)))
+    if (!client.SendData(reinterpret_cast<const char*>(&connectRequest), sizeof(connectRequest)))
     {
         cout << "Failed to send connect request.\n";
         client.Close();
@@ -74,7 +75,7 @@ int main()
             {
                 cout << "Invalid input. Please enter a numeric Pilot ID.\n";
                 cin.clear();
-                cin.ignore(1000, '\n');
+                cin.ignore((numeric_limits<streamsize>::max)(), '\n');
                 continue;
             }
 
@@ -99,7 +100,7 @@ int main()
         scheduleRequest.header.dataSize = sizeof(scheduleRequest);
         scheduleRequest.pilotId = pilotId;
 
-        if (!client.SendData(reinterpret_cast<char*>(&scheduleRequest), sizeof(scheduleRequest)))
+        if (!client.SendData(reinterpret_cast<const char*>(&scheduleRequest), sizeof(scheduleRequest)))
         {
             cout << "Failed to send schedule request.\n";
             client.Close();
