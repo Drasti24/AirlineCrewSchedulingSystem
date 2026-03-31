@@ -1,5 +1,7 @@
+//Group - 7 Drasti Patel , Komalpreet kaur , Jiya Pandit  
 #include "ClientConnection.h"
 #include "../Packets.h"
+#include "../Logger.h"
 #include <limits>
 
 int main()
@@ -65,107 +67,219 @@ int main()
 
     while (true)
     {
-        int pilotId;
+        int choice;
 
-        while (true)
+        cout << "\n===== Airline Crew System =====\n";
+        cout << "1. Get Pilot Schedule\n";
+        cout << "2. Assign Flight\n";
+        cout << "0. Exit\n";
+        cout << "Enter choice: ";
+
+        if (!(cin >> choice))
         {
-            cout << "\nEnter Pilot ID to retrieve schedule (or 0 to exit): ";
+            cout << "Invalid input. Please enter a number.\n";
+            cin.clear();
+            cin.ignore((numeric_limits<streamsize>::max)(), '\n');
+            continue;
+        }
 
+        if (choice == 0)
+        {
+            Logger::Log("client_log.txt", "INFO", "Client chose to exit");
+            client.Close();
+            return 0;
+        }
+
+        if (choice == 1)
+        {
+            int pilotId;
+
+            while (true)
+            {
+                cout << "\nEnter Pilot ID to retrieve schedule (or 0 to cancel): ";
+
+                if (!(cin >> pilotId))
+                {
+                    cout << "Invalid input. Please enter a numeric Pilot ID.\n";
+                    cin.clear();
+                    cin.ignore((numeric_limits<streamsize>::max)(), '\n');
+                    continue;
+                }
+
+                if (pilotId == 0)
+                {
+                    break;
+                }
+
+                if (pilotId < 0)
+                {
+                    cout << "Pilot ID must be a positive number.\n";
+                    continue;
+                }
+
+                ScheduleRequestPacket scheduleRequest{};
+                scheduleRequest.header.packetType = GET_SCHEDULE_REQUEST;
+                scheduleRequest.header.dataSize = sizeof(scheduleRequest);
+                scheduleRequest.pilotId = pilotId;
+
+                if (!client.SendData(reinterpret_cast<const char*>(&scheduleRequest), sizeof(scheduleRequest)))
+                {
+                    cout << "Failed to send schedule request.\n";
+                    Logger::Log("client_log.txt", "ERROR", "Failed to send schedule request");
+                    client.Close();
+                    return 1;
+                }
+
+                Logger::Log(
+                    "client_log.txt",
+                    "TX",
+                    "GET_SCHEDULE_REQUEST PilotID=" + to_string(pilotId)
+                );
+
+                ScheduleResponsePacket scheduleResponse{};
+                if (!client.ReceiveData(reinterpret_cast<char*>(&scheduleResponse), sizeof(scheduleResponse)))
+                {
+                    cout << "Failed to receive schedule response.\n";
+                    Logger::Log("client_log.txt", "ERROR", "Failed to receive schedule response");
+                    client.Close();
+                    return 1;
+                }
+
+                string scheduleStatus;
+                if (scheduleResponse.statusCode == STATUS_OK)
+                {
+                    scheduleStatus = "OK";
+                }
+                else if (scheduleResponse.statusCode == STATUS_NOT_FOUND)
+                {
+                    scheduleStatus = "NOT_FOUND";
+                }
+                else
+                {
+                    scheduleStatus = "FAILED";
+                }
+
+                Logger::Log(
+                    "client_log.txt",
+                    "RX",
+                    "GET_SCHEDULE_RESPONSE PilotID=" + to_string(scheduleResponse.pilotId) +
+                    " Status=" + scheduleStatus +
+                    " FlightCount=" + to_string(scheduleResponse.flightCount)
+                );
+
+                if (scheduleResponse.statusCode == STATUS_NOT_FOUND)
+                {
+                    cout << "\nPilot with ID " << pilotId << " was not found.\n";
+                    break;
+                }
+
+                if (scheduleResponse.statusCode != STATUS_OK)
+                {
+                    cout << "\nFailed to retrieve pilot schedule.\n";
+                    client.Close();
+                    return 1;
+                }
+
+                cout << "\nPilot ID: " << scheduleResponse.pilotId << endl;
+                cout << "Pilot Name: " << scheduleResponse.pilotName << endl;
+                cout << "Flights Assigned: " << scheduleResponse.flightCount << endl;
+
+                if (scheduleResponse.flightCount == 0)
+                {
+                    cout << "No flights assigned.\n";
+                }
+
+                for (int i = 0; i < scheduleResponse.flightCount; i++)
+                {
+                    FlightInfo flight{};
+                    if (!client.ReceiveData(reinterpret_cast<char*>(&flight), sizeof(flight)))
+                    {
+                        cout << "Failed to receive flight data.\n";
+                        Logger::Log("client_log.txt", "ERROR", "Failed to receive flight data");
+                        client.Close();
+                        return 1;
+                    }
+
+                    Logger::Log(
+                        "client_log.txt",
+                        "RX",
+                        "FLIGHT_INFO FlightID=" + to_string(flight.flightId) +
+                        " Origin=" + string(flight.origin) +
+                        " Destination=" + string(flight.destination) +
+                        " Date=" + string(flight.date)
+                    );
+
+                    cout << "\nFlight " << (i + 1) << endl;
+                    cout << "Flight ID: " << flight.flightId << endl;
+                    cout << "Origin: " << flight.origin << endl;
+                    cout << "Destination: " << flight.destination << endl;
+                    cout << "Date: " << flight.date << endl;
+                }
+
+                cout << "\nYou can return to the menu now.\n";
+                break;
+            }
+        }
+        else if (choice == 2)
+        {
+            int pilotId;
+            FlightInfo flight{};
+
+            cout << "\nEnter Pilot ID: ";
             if (!(cin >> pilotId))
             {
-                cout << "Invalid input. Please enter a numeric Pilot ID.\n";
+                cout << "Invalid Pilot ID.\n";
                 cin.clear();
                 cin.ignore((numeric_limits<streamsize>::max)(), '\n');
                 continue;
             }
 
-            if (pilotId == 0)
+            cout << "Enter Flight ID: ";
+            if (!(cin >> flight.flightId))
             {
-                Logger::Log("client_log.txt", "INFO", "Client chose to exit");
-                client.Close();
-                return 0;
-            }
-
-            if (pilotId < 0)
-            {
-                cout << "Pilot ID must be a positive number.\n";
+                cout << "Invalid Flight ID.\n";
+                cin.clear();
+                cin.ignore((numeric_limits<streamsize>::max)(), '\n');
                 continue;
             }
 
-            break;
-        }
+            cin.ignore((numeric_limits<streamsize>::max)(), '\n');
 
-        ScheduleRequestPacket scheduleRequest{};
-        scheduleRequest.header.packetType = GET_SCHEDULE_REQUEST;
-        scheduleRequest.header.dataSize = sizeof(scheduleRequest);
-        scheduleRequest.pilotId = pilotId;
+            cout << "Enter Origin: ";
+            cin.getline(flight.origin, sizeof(flight.origin));
 
-        if (!client.SendData(reinterpret_cast<const char*>(&scheduleRequest), sizeof(scheduleRequest)))
-        {
-            cout << "Failed to send schedule request.\n";
-            client.Close();
-            return 1;
-        }
+            cout << "Enter Destination: ";
+            cin.getline(flight.destination, sizeof(flight.destination));
 
-        Logger::Log(
-            "client_log.txt",
-            "TX",
-            "GET_SCHEDULE_REQUEST PilotID=" + to_string(pilotId)
-        );
+            cout << "Enter Date (YYYY-MM-DD): ";
+            cin.getline(flight.date, sizeof(flight.date));
 
-        ScheduleResponsePacket scheduleResponse{};
-        if (!client.ReceiveData(reinterpret_cast<char*>(&scheduleResponse), sizeof(scheduleResponse)))
-        {
-            cout << "Failed to receive schedule response.\n";
-            client.Close();
-            return 1;
-        }
+            AssignFlightPacket assignPacket{};
+            assignPacket.header.packetType = ASSIGN_FLIGHT_REQUEST;
+            assignPacket.header.dataSize = sizeof(assignPacket);
+            assignPacket.pilotId = pilotId;
+            assignPacket.flight = flight;
 
-        string scheduleStatus;
-        if (scheduleResponse.statusCode == STATUS_OK)
-        {
-            scheduleStatus = "OK";
-        }
-        else if (scheduleResponse.statusCode == STATUS_NOT_FOUND)
-        {
-            scheduleStatus = "NOT_FOUND";
-        }
-        else
-        {
-            scheduleStatus = "FAILED";
-        }
-
-        Logger::Log(
-            "client_log.txt",
-            "RX",
-            "GET_SCHEDULE_RESPONSE PilotID=" + to_string(scheduleResponse.pilotId) +
-            " Status=" + scheduleStatus +
-            " FlightCount=" + to_string(scheduleResponse.flightCount)
-        );
-
-        if (scheduleResponse.statusCode == STATUS_NOT_FOUND)
-        {
-            cout << "\nPilot with ID " << pilotId << " was not found.\n";
-            continue;
-        }
-
-        if (scheduleResponse.statusCode != STATUS_OK)
-        {
-            cout << "\nFailed to retrieve pilot schedule.\n";
-            client.Close();
-            return 1;
-        }
-
-        cout << "\nPilot ID: " << scheduleResponse.pilotId << endl;
-        cout << "Pilot Name: " << scheduleResponse.pilotName << endl;
-        cout << "Flights Assigned: " << scheduleResponse.flightCount << endl;
-
-        for (int i = 0; i < scheduleResponse.flightCount; i++)
-        {
-            FlightInfo flight{};
-            if (!client.ReceiveData(reinterpret_cast<char*>(&flight), sizeof(flight)))
+            if (!client.SendData(reinterpret_cast<const char*>(&assignPacket), sizeof(assignPacket)))
             {
-                cout << "Failed to receive flight data.\n";
+                cout << "Failed to send assign flight request.\n";
+                Logger::Log("client_log.txt", "ERROR", "Failed to send assign flight request");
+                client.Close();
+                return 1;
+            }
+
+            Logger::Log(
+                "client_log.txt",
+                "TX",
+                "ASSIGN_FLIGHT_REQUEST PilotID=" + to_string(pilotId) +
+                " FlightID=" + to_string(flight.flightId)
+            );
+
+            OperationResponsePacket response{};
+            if (!client.ReceiveData(reinterpret_cast<char*>(&response), sizeof(response)))
+            {
+                cout << "Failed to receive assign flight response.\n";
+                Logger::Log("client_log.txt", "ERROR", "Failed to receive assign flight response");
                 client.Close();
                 return 1;
             }
@@ -173,20 +287,15 @@ int main()
             Logger::Log(
                 "client_log.txt",
                 "RX",
-                "FLIGHT_INFO FlightID=" + to_string(flight.flightId) +
-                " Origin=" + string(flight.origin) +
-                " Destination=" + string(flight.destination) +
-                " Date=" + string(flight.date)
+                "OPERATION_RESPONSE Status=" + string(response.message)
             );
 
-            cout << "\nFlight " << (i + 1) << endl;
-            cout << "Flight ID: " << flight.flightId << endl;
-            cout << "Origin: " << flight.origin << endl;
-            cout << "Destination: " << flight.destination << endl;
-            cout << "Date: " << flight.date << endl;
+            cout << "\nServer response: " << response.message << endl;
         }
-
-        cout << "\nYou can enter another Pilot ID now.\n";
+        else
+        {
+            cout << "Invalid option.\n";
+        }
     }
 
     client.Close();

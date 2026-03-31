@@ -1,3 +1,4 @@
+//Group - 7 Drasti Patel , Komalpreet kaur , Jiya Pandit  
 #include "ScheduleRepository.h"
 #include <cstring>
 
@@ -55,6 +56,19 @@ bool ScheduleRepository::GetScheduleByPilotId(int pilotId, PilotSchedule& result
         if (schedule.pilotId == pilotId)
         {
             result = schedule;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool ScheduleRepository::AssignFlight(int pilotId, const FlightInfo& flight)
+{
+    for (auto& schedule : schedules)
+    {
+        if (schedule.pilotId == pilotId)
+        {
+            schedule.flights.push_back(flight);
             return true;
         }
     }

@@ -1,3 +1,4 @@
+//Group - 7 Drasti Patel , Komalpreet kaur , Jiya Pandit    
 #pragma once
 
 #include "../Packets.h"
@@ -20,4 +21,6 @@ private:
 public:
     void LoadSampleData();
     bool GetScheduleByPilotId(int pilotId, PilotSchedule& result);
+    bool AssignFlight(int pilotId, const FlightInfo& flight);
 };
+

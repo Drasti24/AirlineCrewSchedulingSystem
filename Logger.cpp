@@ -1,3 +1,4 @@
+//Group - 7 Drasti Patel , Komalpreet kaur , Jiya Pandit  
 #include "Logger.h"
 
 void Logger::Log(const string& fileName, const string& direction, const string& message)

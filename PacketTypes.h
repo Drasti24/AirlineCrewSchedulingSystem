@@ -1,4 +1,6 @@
+//Group - 7 Drasti Patel , Komalpreet kaur , Jiya Pandit  
 #pragma once
+#include <string>
 
 enum PacketType
 {
@@ -34,3 +36,15 @@ enum ServerState
     STATE_SENDING_REPORT,
     STATE_ERROR
 };
+
+inline std::string PacketTypeToString(int type)
+{
+    switch (type)
+    {
+    case CONNECT_REQUEST: return "CONNECT_REQUEST";
+    case CONNECT_RESPONSE: return "CONNECT_RESPONSE";
+    case GET_SCHEDULE_REQUEST: return "GET_SCHEDULE_REQUEST";
+    case GET_SCHEDULE_RESPONSE: return "GET_SCHEDULE_RESPONSE";
+    default: return "UNKNOWN_PACKET";
+    }
+}
