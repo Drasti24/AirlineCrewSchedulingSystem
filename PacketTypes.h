@@ -48,3 +48,18 @@ inline std::string PacketTypeToString(int type)
     default: return "UNKNOWN_PACKET";
     }
 }
+
+inline std::string ServerStateToString(ServerState state)
+{
+    switch (state)
+    {
+    case STATE_DISCONNECTED: return "STATE_DISCONNECTED";
+    case STATE_CONNECTED: return "STATE_CONNECTED";
+    case STATE_AUTHENTICATED: return "STATE_AUTHENTICATED";
+    case STATE_PROCESSING_REQUEST: return "STATE_PROCESSING_REQUEST";
+    case STATE_SENDING_SCHEDULE: return "STATE_SENDING_SCHEDULE";
+    case STATE_SENDING_REPORT: return "STATE_SENDING_REPORT";
+    case STATE_ERROR: return "STATE_ERROR";
+    default: return "UNKNOWN_STATE";
+    }
+}

@@ -89,3 +89,10 @@ struct FileChunkPacket
     int bytesInChunk;
     char data[REPORT_CHUNK_SIZE];
 };
+
+struct UpdateFlightPacket
+{
+    PacketHeader header;
+    int pilotId;
+    FlightInfo flight;
+};

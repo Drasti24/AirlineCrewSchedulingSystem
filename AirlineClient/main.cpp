@@ -3,6 +3,7 @@
 #include "../Packets.h"
 #include "../Logger.h"
 #include <limits>
+#include <fstream>
 
 int main()
 {
@@ -69,10 +70,13 @@ int main()
     {
         int choice;
 
-        cout << "\n1. Get Pilot Schedule\n";
+        cout << "\n===== Airline Crew System =====\n";
+        cout << "1. Get Pilot Schedule\n";
         cout << "2. Assign Flight\n";
         cout << "3. Remove Flight\n";
-        cout << "0. Exit\n";        
+        cout << "4. Download Monthly Report\n";
+        cout << "5. Update Flight\n";
+        cout << "0. Exit\n";
         cout << "Enter choice: ";
 
         if (!(cin >> choice))
@@ -120,6 +124,7 @@ int main()
                 ScheduleRequestPacket scheduleRequest{};
                 scheduleRequest.header.packetType = GET_SCHEDULE_REQUEST;
                 scheduleRequest.header.dataSize = sizeof(scheduleRequest);
+                //scheduleRequest.header.dataSize = 999;
                 scheduleRequest.pilotId = pilotId;
 
                 if (!client.SendData(reinterpret_cast<const char*>(&scheduleRequest), sizeof(scheduleRequest)))
@@ -342,6 +347,162 @@ int main()
             {
                 cout << "Failed to receive remove flight response.\n";
                 Logger::Log("client_log.txt", "ERROR", "Failed to receive remove flight response");
+                client.Close();
+                return 1;
+            }
+
+            Logger::Log(
+                "client_log.txt",
+                "RX",
+                "OPERATION_RESPONSE Status=" + string(response.message)
+            );
+
+            cout << "\nServer response: " << response.message << endl;
+        }
+
+        else if (choice == 4)
+        {
+            DownloadReportRequestPacket reportRequest{};
+            reportRequest.header.packetType = DOWNLOAD_REPORT_REQUEST;
+            reportRequest.header.dataSize = sizeof(reportRequest);
+            strcpy_s(reportRequest.month, sizeof(reportRequest.month), "2026-04");
+
+            if (!client.SendData(reinterpret_cast<const char*>(&reportRequest), sizeof(reportRequest)))
+            {
+                cout << "Failed to send report download request.\n";
+                Logger::Log("client_log.txt", "ERROR", "Failed to send report download request");
+                client.Close();
+                return 1;
+            }
+
+            Logger::Log(
+                "client_log.txt",
+                "TX",
+                "DOWNLOAD_REPORT_REQUEST Month=" + string(reportRequest.month)
+            );
+
+            FileInfoPacket fileInfo{};
+            if (!client.ReceiveData(reinterpret_cast<char*>(&fileInfo), sizeof(fileInfo)))
+            {
+                cout << "Failed to receive file info packet.\n";
+                Logger::Log("client_log.txt", "ERROR", "Failed to receive file info packet");
+                client.Close();
+                return 1;
+            }
+
+            Logger::Log(
+                "client_log.txt",
+                "RX",
+                "FILE_INFO_PACKET FileName=" + string(fileInfo.fileName) +
+                " Size=" + to_string(fileInfo.totalFileSize)
+            );
+
+            if (fileInfo.statusCode != STATUS_OK)
+            {
+                cout << "Server failed to prepare the report file.\n";
+                continue;
+            }
+
+            string outputFileName = "downloaded_" + string(fileInfo.fileName);
+            ofstream outputFile(outputFileName, ios::binary);
+
+            if (!outputFile.is_open())
+            {
+                cout << "Failed to create local file for download.\n";
+                Logger::Log("client_log.txt", "ERROR", "Failed to create local file for download");
+                continue;
+            }
+
+            int totalBytesReceived = 0;
+
+            while (totalBytesReceived < fileInfo.totalFileSize)
+            {
+                FileChunkPacket chunkPacket{};
+                if (!client.ReceiveData(reinterpret_cast<char*>(&chunkPacket), sizeof(chunkPacket)))
+                {
+                    cout << "Failed to receive file chunk.\n";
+                    Logger::Log("client_log.txt", "ERROR", "Failed to receive file chunk");
+                    outputFile.close();
+                    client.Close();
+                    return 1;
+                }
+
+                outputFile.write(chunkPacket.data, chunkPacket.bytesInChunk);
+                totalBytesReceived += chunkPacket.bytesInChunk;
+
+                Logger::Log(
+                    "client_log.txt",
+                    "RX",
+                    "FILE_CHUNK_PACKET Bytes=" + to_string(chunkPacket.bytesInChunk)
+                );
+            }
+
+            outputFile.close();
+
+            cout << "\nReport downloaded successfully.\n";
+            cout << "Saved as: " << outputFileName << endl;
+            cout << "Total bytes received: " << totalBytesReceived << endl;
+        }
+        else if (choice == 5)
+        {
+            int pilotId;
+            FlightInfo flight{};
+
+            cout << "\nEnter Pilot ID: ";
+            if (!(cin >> pilotId))
+            {
+                cout << "Invalid Pilot ID.\n";
+                cin.clear();
+                cin.ignore((numeric_limits<streamsize>::max)(), '\n');
+                continue;
+            }
+
+            cout << "Enter Flight ID to update: ";
+            if (!(cin >> flight.flightId))
+            {
+                cout << "Invalid Flight ID.\n";
+                cin.clear();
+                cin.ignore((numeric_limits<streamsize>::max)(), '\n');
+                continue;
+            }
+
+            cin.ignore((numeric_limits<streamsize>::max)(), '\n');
+
+            cout << "Enter New Origin: ";
+            cin.getline(flight.origin, sizeof(flight.origin));
+
+            cout << "Enter New Destination: ";
+            cin.getline(flight.destination, sizeof(flight.destination));
+
+            cout << "Enter New Date (YYYY-MM-DD): ";
+            cin.getline(flight.date, sizeof(flight.date));
+
+            UpdateFlightPacket updatePacket{};
+            updatePacket.header.packetType = UPDATE_FLIGHT_REQUEST;
+            updatePacket.header.dataSize = sizeof(updatePacket);
+            updatePacket.pilotId = pilotId;
+            updatePacket.flight = flight;
+
+            if (!client.SendData(reinterpret_cast<const char*>(&updatePacket), sizeof(updatePacket)))
+            {
+                cout << "Failed to send update flight request.\n";
+                Logger::Log("client_log.txt", "ERROR", "Failed to send update flight request");
+                client.Close();
+                return 1;
+            }
+
+            Logger::Log(
+                "client_log.txt",
+                "TX",
+                "UPDATE_FLIGHT_REQUEST PilotID=" + to_string(pilotId) +
+                " FlightID=" + to_string(flight.flightId)
+            );
+
+            OperationResponsePacket response{};
+            if (!client.ReceiveData(reinterpret_cast<char*>(&response), sizeof(response)))
+            {
+                cout << "Failed to receive update flight response.\n";
+                Logger::Log("client_log.txt", "ERROR", "Failed to receive update flight response");
                 client.Close();
                 return 1;
             }

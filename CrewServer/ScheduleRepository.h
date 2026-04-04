@@ -24,4 +24,5 @@ public:
     bool AssignFlight(int pilotId, const FlightInfo& flight);
     bool RemoveFlight(int pilotId, int flightId);
     const vector<PilotSchedule>& GetAllSchedules() const;
+    bool UpdateFlight(int pilotId, const FlightInfo& updatedFlight);
 };

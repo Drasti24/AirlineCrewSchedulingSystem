@@ -101,3 +101,24 @@ const vector<PilotSchedule>& ScheduleRepository::GetAllSchedules() const
 {
     return schedules;
 }
+
+bool ScheduleRepository::UpdateFlight(int pilotId, const FlightInfo& updatedFlight)
+{
+    for (auto& schedule : schedules)
+    {
+        if (schedule.pilotId == pilotId)
+        {
+            for (auto& flight : schedule.flights)
+            {
+                if (flight.flightId == updatedFlight.flightId)
+                {
+                    flight = updatedFlight;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+    return false;
+}
