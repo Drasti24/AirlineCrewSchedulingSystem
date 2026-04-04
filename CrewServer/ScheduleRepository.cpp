@@ -96,3 +96,8 @@ bool ScheduleRepository::RemoveFlight(int pilotId, int flightId)
 
     return false;
 }
+
+const vector<PilotSchedule>& ScheduleRepository::GetAllSchedules() const
+{
+    return schedules;
+}

@@ -23,4 +23,5 @@ public:
     bool GetScheduleByPilotId(int pilotId, PilotSchedule& result);
     bool AssignFlight(int pilotId, const FlightInfo& flight);
     bool RemoveFlight(int pilotId, int flightId);
+    const vector<PilotSchedule>& GetAllSchedules() const;
 };

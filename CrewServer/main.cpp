@@ -4,14 +4,17 @@
 #include "../StateMachine.h"
 #include "../Logger.h"
 #include "ScheduleRepository.h"
+#include "ReportService.h"
 
 int main()
 {
     ServerConnection server;
     StateMachine stateMachine;
     ScheduleRepository repository;
-
     repository.LoadSampleData();
+
+    ReportService reportService;
+    reportService.GenerateReport(repository, "monthly_report.txt");
 
     if (!server.Initialize())
     {
