@@ -69,10 +69,10 @@ int main()
     {
         int choice;
 
-        cout << "\n===== Airline Crew System =====\n";
-        cout << "1. Get Pilot Schedule\n";
+        cout << "\n1. Get Pilot Schedule\n";
         cout << "2. Assign Flight\n";
-        cout << "0. Exit\n";
+        cout << "3. Remove Flight\n";
+        cout << "0. Exit\n";        
         cout << "Enter choice: ";
 
         if (!(cin >> choice))
@@ -292,6 +292,69 @@ int main()
 
             cout << "\nServer response: " << response.message << endl;
         }
+
+        else if (choice == 3)
+        {
+            int pilotId;
+            int flightId;
+
+            cout << "\nEnter Pilot ID: ";
+            if (!(cin >> pilotId))
+            {
+                cout << "Invalid Pilot ID.\n";
+                cin.clear();
+                cin.ignore((numeric_limits<streamsize>::max)(), '\n');
+                continue;
+            }
+
+            cout << "Enter Flight ID to remove: ";
+            if (!(cin >> flightId))
+            {
+                cout << "Invalid Flight ID.\n";
+                cin.clear();
+                cin.ignore((numeric_limits<streamsize>::max)(), '\n');
+                continue;
+            }
+
+            RemoveFlightPacket removePacket{};
+            removePacket.header.packetType = REMOVE_FLIGHT_REQUEST;
+            removePacket.header.dataSize = sizeof(removePacket);
+            removePacket.pilotId = pilotId;
+            removePacket.flightId = flightId;
+
+            if (!client.SendData(reinterpret_cast<const char*>(&removePacket), sizeof(removePacket)))
+            {
+                cout << "Failed to send remove flight request.\n";
+                Logger::Log("client_log.txt", "ERROR", "Failed to send remove flight request");
+                client.Close();
+                return 1;
+            }
+
+            Logger::Log(
+                "client_log.txt",
+                "TX",
+                "REMOVE_FLIGHT_REQUEST PilotID=" + to_string(pilotId) +
+                " FlightID=" + to_string(flightId)
+            );
+
+            OperationResponsePacket response{};
+            if (!client.ReceiveData(reinterpret_cast<char*>(&response), sizeof(response)))
+            {
+                cout << "Failed to receive remove flight response.\n";
+                Logger::Log("client_log.txt", "ERROR", "Failed to receive remove flight response");
+                client.Close();
+                return 1;
+            }
+
+            Logger::Log(
+                "client_log.txt",
+                "RX",
+                "OPERATION_RESPONSE Status=" + string(response.message)
+            );
+
+            cout << "\nServer response: " << response.message << endl;
+        }
+
         else
         {
             cout << "Invalid option.\n";

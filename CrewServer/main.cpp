@@ -263,6 +263,85 @@ int main()
 
             stateMachine.SetState(STATE_AUTHENTICATED);
         }
+        else if (header.packetType == REMOVE_FLIGHT_REQUEST)
+        {
+            RemoveFlightPacket removePacket{};
+            removePacket.header = header;
+
+            if (!server.ReceiveData(
+                reinterpret_cast<char*>(&removePacket) + sizeof(PacketHeader),
+                sizeof(RemoveFlightPacket) - sizeof(PacketHeader)))
+            {
+                cout << "Failed to receive remove flight packet.\n";
+                Logger::Log("server_log.txt", "ERROR", "Failed to receive remove flight packet");
+                break;
+            }
+
+            Logger::Log(
+                "server_log.txt",
+                "RX",
+                "REMOVE_FLIGHT_REQUEST PilotID=" + to_string(removePacket.pilotId) +
+                " FlightID=" + to_string(removePacket.flightId)
+            );
+
+            if (removePacket.header.dataSize != sizeof(RemoveFlightPacket))
+            {
+                cout << "Invalid remove flight packet received.\n";
+                Logger::Log("server_log.txt", "ERROR", "Invalid remove flight packet size");
+                stateMachine.SetState(STATE_ERROR);
+                break;
+            }
+
+            stateMachine.SetState(STATE_PROCESSING_REQUEST);
+
+            OperationResponsePacket response{};
+            response.header.packetType = OPERATION_RESPONSE;
+            response.header.dataSize = sizeof(response);
+
+            PilotSchedule pilotSchedule{};
+            bool pilotExists = repository.GetScheduleByPilotId(removePacket.pilotId, pilotSchedule);
+
+            if (!pilotExists)
+            {
+                response.statusCode = STATUS_NOT_FOUND;
+                strcpy_s(response.message, sizeof(response.message), "Pilot not found");
+                cout << "Pilot ID " << removePacket.pilotId << " not found for removal.\n";
+            }
+            else
+            {
+                bool removed = repository.RemoveFlight(removePacket.pilotId, removePacket.flightId);
+
+                if (removed)
+                {
+                    response.statusCode = STATUS_OK;
+                    strcpy_s(response.message, sizeof(response.message), "Flight removed successfully");
+                    cout << "Flight ID " << removePacket.flightId
+                        << " removed successfully from Pilot ID " << removePacket.pilotId << ".\n";
+                }
+                else
+                {
+                    response.statusCode = STATUS_NOT_FOUND;
+                    strcpy_s(response.message, sizeof(response.message), "Flight not found");
+                    cout << "Flight ID " << removePacket.flightId
+                        << " not found for Pilot ID " << removePacket.pilotId << ".\n";
+                }
+            }
+
+            if (!server.SendData(reinterpret_cast<const char*>(&response), sizeof(response)))
+            {
+                cout << "Failed to send remove flight response.\n";
+                Logger::Log("server_log.txt", "ERROR", "Failed to send remove flight response");
+                break;
+            }
+
+            Logger::Log(
+                "server_log.txt",
+                "TX",
+                "OPERATION_RESPONSE Status=" + string(response.message)
+        );
+
+        stateMachine.SetState(STATE_AUTHENTICATED);
+        }
         else
         {
             cout << "Invalid packet received.\n";

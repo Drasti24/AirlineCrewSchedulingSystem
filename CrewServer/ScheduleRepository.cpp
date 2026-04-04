@@ -74,3 +74,25 @@ bool ScheduleRepository::AssignFlight(int pilotId, const FlightInfo& flight)
     }
     return false;
 }
+
+bool ScheduleRepository::RemoveFlight(int pilotId, int flightId)
+{
+    for (auto& schedule : schedules)
+    {
+        if (schedule.pilotId == pilotId)
+        {
+            for (auto it = schedule.flights.begin(); it != schedule.flights.end(); ++it)
+            {
+                if (it->flightId == flightId)
+                {
+                    schedule.flights.erase(it);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+
+    return false;
+}
