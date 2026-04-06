@@ -1,13 +1,26 @@
-//Group - 7 Drasti Patel , Komalpreet kaur , Jiya Pandit  
+//Group - 7 Drasti Patel , Komalpreet kaur , Jiya Pandit
 #include "ServerConnection.h"
 #include "../Packets.h"
 #include "../StateMachine.h"
 #include "../Logger.h"
 #include "ScheduleRepository.h"
 #include "ReportService.h"
-
 #include <fstream>
 #include <iostream>
+
+using namespace std;
+
+string GetStatusText(int statusCode)
+{
+    if (statusCode == STATUS_OK)
+        return "OK";
+    else if (statusCode == STATUS_NOT_FOUND)
+        return "NOT_FOUND";
+    else if (statusCode == STATUS_INVALID)
+        return "INVALID";
+    else
+        return "FAILED";
+}
 
 int main()
 {
@@ -82,12 +95,10 @@ int main()
         return 1;
     }
 
-    string connectStatus = (connectResponse.statusCode == STATUS_OK) ? "OK" : "INVALID";
-
     Logger::Log(
         "server_log.txt",
         "TX",
-        "CONNECT_RESPONSE Status=" + connectStatus +
+        "CONNECT_RESPONSE Status=" + GetStatusText(connectResponse.statusCode) +
         " Message=" + string(connectResponse.message)
     );
 
@@ -171,7 +182,8 @@ int main()
                     "server_log.txt",
                     "TX",
                     "GET_SCHEDULE_RESPONSE PilotID=" + to_string(scheduleRequest.pilotId) +
-                    " Status=OK FlightCount=" + to_string(scheduleResponse.flightCount)
+                    " Status=" + GetStatusText(scheduleResponse.statusCode) +
+                    " FlightCount=" + to_string(scheduleResponse.flightCount)
                 );
 
                 stateMachine.SetState(STATE_SENDING_SCHEDULE);
@@ -229,7 +241,8 @@ int main()
                     "server_log.txt",
                     "TX",
                     "GET_SCHEDULE_RESPONSE PilotID=" + to_string(scheduleRequest.pilotId) +
-                    " Status=NOT_FOUND FlightCount=0"
+                    " Status=" + GetStatusText(scheduleResponse.statusCode) +
+                    " FlightCount=0"
                 );
 
                 cout << "Pilot ID " << scheduleRequest.pilotId << " not found.\n";
@@ -306,7 +319,8 @@ int main()
             Logger::Log(
                 "server_log.txt",
                 "TX",
-                "OPERATION_RESPONSE Status=" + string(response.message)
+                "OPERATION_RESPONSE Status=" + GetStatusText(response.statusCode) +
+                " Message=" + string(response.message)
             );
 
             stateMachine.SetState(STATE_AUTHENTICATED);
@@ -395,7 +409,8 @@ int main()
             Logger::Log(
                 "server_log.txt",
                 "TX",
-                "OPERATION_RESPONSE Status=" + string(response.message)
+                "OPERATION_RESPONSE Status=" + GetStatusText(response.statusCode) +
+                " Message=" + string(response.message)
             );
 
             stateMachine.SetState(STATE_AUTHENTICATED);
@@ -654,12 +669,12 @@ int main()
             Logger::Log(
                 "server_log.txt",
                 "TX",
-                "OPERATION_RESPONSE Status=" + string(response.message)
+                "OPERATION_RESPONSE Status=" + GetStatusText(response.statusCode) +
+                " Message=" + string(response.message)
             );
 
             stateMachine.SetState(STATE_AUTHENTICATED);
         }
-
         else
         {
             cout << "Invalid packet received.\n";
