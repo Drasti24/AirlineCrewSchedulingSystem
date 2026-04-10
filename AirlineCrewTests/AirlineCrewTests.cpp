@@ -2,6 +2,7 @@
 #include "CppUnitTest.h"
 #include "ScheduleRepository.h"
 #include "ReportService.h"
+#include "StateMachine.h"
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -237,6 +238,226 @@ namespace AirlineCrewTests
             {
                 std::filesystem::remove(fileName);
             }
+        }
+    };
+
+    TEST_CLASS(StateMachineTests)
+    {
+    public:
+
+        TEST_METHOD(Constructor_InitialStateIsDisconnected)
+        {
+            StateMachine stateMachine;
+
+            Assert::AreEqual((int)STATE_DISCONNECTED, (int)stateMachine.GetCurrentState());
+        }
+
+        TEST_METHOD(DisconnectedToConnected_IsValid)
+        {
+            StateMachine stateMachine;
+
+            bool isValid = stateMachine.IsValidTransition(STATE_CONNECTED);
+
+            Assert::IsTrue(isValid);
+        }
+
+        TEST_METHOD(DisconnectedToAuthenticated_IsInvalid)
+        {
+            StateMachine stateMachine;
+
+            bool isValid = stateMachine.IsValidTransition(STATE_AUTHENTICATED);
+
+            Assert::IsFalse(isValid);
+        }
+
+        TEST_METHOD(SetState_ValidTransition_ChangesState)
+        {
+            StateMachine stateMachine;
+
+            stateMachine.SetState(STATE_CONNECTED);
+
+            Assert::AreEqual((int)STATE_CONNECTED, (int)stateMachine.GetCurrentState());
+        }
+
+        TEST_METHOD(SetState_InvalidTransition_SetsErrorState)
+        {
+            StateMachine stateMachine;
+
+            stateMachine.SetState(STATE_AUTHENTICATED);
+
+            Assert::AreEqual((int)STATE_ERROR, (int)stateMachine.GetCurrentState());
+        }
+
+        TEST_METHOD(ConnectedToAuthenticated_IsValid)
+        {
+            StateMachine stateMachine;
+            stateMachine.SetState(STATE_CONNECTED);
+
+            bool isValid = stateMachine.IsValidTransition(STATE_AUTHENTICATED);
+
+            Assert::IsTrue(isValid);
+        }
+
+        TEST_METHOD(ConnectedToDisconnected_IsValid)
+        {
+            StateMachine stateMachine;
+            stateMachine.SetState(STATE_CONNECTED);
+
+            bool isValid = stateMachine.IsValidTransition(STATE_DISCONNECTED);
+
+            Assert::IsTrue(isValid);
+        }
+
+        TEST_METHOD(ConnectedToSendingSchedule_IsInvalid)
+        {
+            StateMachine stateMachine;
+            stateMachine.SetState(STATE_CONNECTED);
+
+            bool isValid = stateMachine.IsValidTransition(STATE_SENDING_SCHEDULE);
+
+            Assert::IsFalse(isValid);
+        }
+
+        TEST_METHOD(AuthenticatedToProcessingRequest_IsValid)
+        {
+            StateMachine stateMachine;
+            stateMachine.SetState(STATE_CONNECTED);
+            stateMachine.SetState(STATE_AUTHENTICATED);
+
+            bool isValid = stateMachine.IsValidTransition(STATE_PROCESSING_REQUEST);
+
+            Assert::IsTrue(isValid);
+        }
+
+        TEST_METHOD(AuthenticatedToDisconnected_IsValid)
+        {
+            StateMachine stateMachine;
+            stateMachine.SetState(STATE_CONNECTED);
+            stateMachine.SetState(STATE_AUTHENTICATED);
+
+            bool isValid = stateMachine.IsValidTransition(STATE_DISCONNECTED);
+
+            Assert::IsTrue(isValid);
+        }
+
+        TEST_METHOD(AuthenticatedToSendingReport_IsInvalid)
+        {
+            StateMachine stateMachine;
+            stateMachine.SetState(STATE_CONNECTED);
+            stateMachine.SetState(STATE_AUTHENTICATED);
+
+            bool isValid = stateMachine.IsValidTransition(STATE_SENDING_REPORT);
+
+            Assert::IsFalse(isValid);
+        }
+
+        TEST_METHOD(ProcessingRequestToSendingSchedule_IsValid)
+        {
+            StateMachine stateMachine;
+            stateMachine.SetState(STATE_CONNECTED);
+            stateMachine.SetState(STATE_AUTHENTICATED);
+            stateMachine.SetState(STATE_PROCESSING_REQUEST);
+
+            bool isValid = stateMachine.IsValidTransition(STATE_SENDING_SCHEDULE);
+
+            Assert::IsTrue(isValid);
+        }
+
+        TEST_METHOD(ProcessingRequestToSendingReport_IsValid)
+        {
+            StateMachine stateMachine;
+            stateMachine.SetState(STATE_CONNECTED);
+            stateMachine.SetState(STATE_AUTHENTICATED);
+            stateMachine.SetState(STATE_PROCESSING_REQUEST);
+
+            bool isValid = stateMachine.IsValidTransition(STATE_SENDING_REPORT);
+
+            Assert::IsTrue(isValid);
+        }
+
+        TEST_METHOD(ProcessingRequestToAuthenticated_IsValid)
+        {
+            StateMachine stateMachine;
+            stateMachine.SetState(STATE_CONNECTED);
+            stateMachine.SetState(STATE_AUTHENTICATED);
+            stateMachine.SetState(STATE_PROCESSING_REQUEST);
+
+            bool isValid = stateMachine.IsValidTransition(STATE_AUTHENTICATED);
+
+            Assert::IsTrue(isValid);
+        }
+
+        TEST_METHOD(ProcessingRequestToError_IsValid)
+        {
+            StateMachine stateMachine;
+            stateMachine.SetState(STATE_CONNECTED);
+            stateMachine.SetState(STATE_AUTHENTICATED);
+            stateMachine.SetState(STATE_PROCESSING_REQUEST);
+
+            bool isValid = stateMachine.IsValidTransition(STATE_ERROR);
+
+            Assert::IsTrue(isValid);
+        }
+
+        TEST_METHOD(SendingScheduleToAuthenticated_IsValid)
+        {
+            StateMachine stateMachine;
+            stateMachine.SetState(STATE_CONNECTED);
+            stateMachine.SetState(STATE_AUTHENTICATED);
+            stateMachine.SetState(STATE_PROCESSING_REQUEST);
+            stateMachine.SetState(STATE_SENDING_SCHEDULE);
+
+            bool isValid = stateMachine.IsValidTransition(STATE_AUTHENTICATED);
+
+            Assert::IsTrue(isValid);
+        }
+
+        TEST_METHOD(SendingReportToAuthenticated_IsValid)
+        {
+            StateMachine stateMachine;
+            stateMachine.SetState(STATE_CONNECTED);
+            stateMachine.SetState(STATE_AUTHENTICATED);
+            stateMachine.SetState(STATE_PROCESSING_REQUEST);
+            stateMachine.SetState(STATE_SENDING_REPORT);
+
+            bool isValid = stateMachine.IsValidTransition(STATE_AUTHENTICATED);
+
+            Assert::IsTrue(isValid);
+        }
+
+        TEST_METHOD(ErrorToAuthenticated_IsValid)
+        {
+            StateMachine stateMachine;
+
+            stateMachine.SetState(STATE_AUTHENTICATED);
+
+            bool isValid = stateMachine.IsValidTransition(STATE_AUTHENTICATED);
+
+            Assert::IsTrue(isValid);
+        }
+
+        TEST_METHOD(ErrorToDisconnected_IsValid)
+        {
+            StateMachine stateMachine;
+
+            stateMachine.SetState(STATE_AUTHENTICATED);
+
+            bool isValid = stateMachine.IsValidTransition(STATE_DISCONNECTED);
+
+            Assert::IsTrue(isValid);
+        }
+
+        TEST_METHOD(SendingScheduleToDisconnected_IsInvalid)
+        {
+            StateMachine stateMachine;
+            stateMachine.SetState(STATE_CONNECTED);
+            stateMachine.SetState(STATE_AUTHENTICATED);
+            stateMachine.SetState(STATE_PROCESSING_REQUEST);
+            stateMachine.SetState(STATE_SENDING_SCHEDULE);
+
+            bool isValid = stateMachine.IsValidTransition(STATE_DISCONNECTED);
+
+            Assert::IsFalse(isValid);
         }
     };
 }
