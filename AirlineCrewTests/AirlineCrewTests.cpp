@@ -62,6 +62,116 @@ namespace AirlineCrewTests
             Assert::IsFalse(found);
         }
 
+        TEST_METHOD(RemoveFlight_InvalidPilot_ReturnsFalse)
+        {
+            ScheduleRepository repo;
+            repo.LoadSampleData();
+
+            bool removed = repo.RemoveFlight(999, 101);
+
+            Assert::IsFalse(removed);
+        }
+
+        TEST_METHOD(RemoveFlight_EmptyRepository_ReturnsFalse)
+        {
+            ScheduleRepository repo;
+
+            bool removed = repo.RemoveFlight(101, 101);
+
+            Assert::IsFalse(removed);
+        }
+
+        TEST_METHOD(UpdateFlight_InvalidPilot_ReturnsFalse)
+        {
+            ScheduleRepository repo;
+            repo.LoadSampleData();
+
+            FlightInfo updatedFlight{};
+            updatedFlight.flightId = 101;
+            strcpy_s(updatedFlight.origin, sizeof(updatedFlight.origin), "Toronto");
+            strcpy_s(updatedFlight.destination, sizeof(updatedFlight.destination), "Vancouver");
+            strcpy_s(updatedFlight.date, sizeof(updatedFlight.date), "2026-06-10");
+
+            bool updated = repo.UpdateFlight(999, updatedFlight);
+
+            Assert::IsFalse(updated);
+        }
+
+        TEST_METHOD(AssignFlight_EmptyRepository_ReturnsFalse)
+        {
+            ScheduleRepository repo;
+
+            FlightInfo newFlight{};
+            newFlight.flightId = 777;
+            strcpy_s(newFlight.origin, sizeof(newFlight.origin), "Toronto");
+            strcpy_s(newFlight.destination, sizeof(newFlight.destination), "Ottawa");
+            strcpy_s(newFlight.date, sizeof(newFlight.date), "2026-05-10");
+
+            bool success = repo.AssignFlight(101, newFlight);
+
+            Assert::IsFalse(success);
+        }
+
+        TEST_METHOD(UpdateFlight_DoesNotChangeFlightCount)
+        {
+            ScheduleRepository repo;
+            repo.LoadSampleData();
+
+            PilotSchedule beforeUpdate{};
+            bool foundBefore = repo.GetScheduleByPilotId(101, beforeUpdate);
+            Assert::IsTrue(foundBefore);
+
+            size_t countBefore = beforeUpdate.flights.size();
+
+            FlightInfo updatedFlight{};
+            updatedFlight.flightId = 205;
+            strcpy_s(updatedFlight.origin, sizeof(updatedFlight.origin), "Montreal");
+            strcpy_s(updatedFlight.destination, sizeof(updatedFlight.destination), "Paris");
+            strcpy_s(updatedFlight.date, sizeof(updatedFlight.date), "2026-06-01");
+
+            bool updated = repo.UpdateFlight(101, updatedFlight);
+            Assert::IsTrue(updated);
+
+            PilotSchedule afterUpdate{};
+            bool foundAfter = repo.GetScheduleByPilotId(101, afterUpdate);
+            Assert::IsTrue(foundAfter);
+
+            Assert::AreEqual(countBefore, afterUpdate.flights.size());
+        }
+
+        TEST_METHOD(AssignFlight_AddsCorrectFlightDetails)
+        {
+            ScheduleRepository repo;
+            repo.LoadSampleData();
+
+            FlightInfo newFlight{};
+            newFlight.flightId = 555;
+            strcpy_s(newFlight.origin, sizeof(newFlight.origin), "Calgary");
+            strcpy_s(newFlight.destination, sizeof(newFlight.destination), "Edmonton");
+            strcpy_s(newFlight.date, sizeof(newFlight.date), "2026-05-15");
+
+            bool success = repo.AssignFlight(102, newFlight);
+            Assert::IsTrue(success);
+
+            PilotSchedule result{};
+            bool found = repo.GetScheduleByPilotId(102, result);
+            Assert::IsTrue(found);
+
+            bool matched = false;
+            for (const auto& flight : result.flights)
+            {
+                if (flight.flightId == 555)
+                {
+                    matched = true;
+                    Assert::AreEqual(0, strcmp(flight.origin, "Calgary"));
+                    Assert::AreEqual(0, strcmp(flight.destination, "Edmonton"));
+                    Assert::AreEqual(0, strcmp(flight.date, "2026-05-15"));
+                }
+            }
+
+            Assert::IsTrue(matched);
+        }
+
         TEST_METHOD(AssignFlight_ValidPilot_AddsFlightSuccessfully)
         {
             ScheduleRepository repo;
@@ -174,6 +284,7 @@ namespace AirlineCrewTests
 
             Assert::IsFalse(updated);
         }
+
     };
 
     TEST_CLASS(ReportServiceTests)
