@@ -309,6 +309,136 @@ namespace AirlineCrewTests
             }
         }
 
+        TEST_METHOD(GenerateReport_FileContainsExpectedHeader)
+        {
+            ScheduleRepository repo;
+            repo.LoadSampleData();
+
+            ReportService reportService;
+            std::string fileName = "test_monthly_report.txt";
+
+            bool result = reportService.GenerateReport(repo, fileName);
+            Assert::IsTrue(result);
+            Assert::IsTrue(std::filesystem::exists(fileName));
+
+            std::ifstream inputFile(fileName);
+            Assert::IsTrue(inputFile.is_open());
+
+            std::string content(
+                (std::istreambuf_iterator<char>(inputFile)),
+                std::istreambuf_iterator<char>());
+
+            inputFile.close();
+
+            Assert::IsTrue(content.find("MONTHLY CREW SCHEDULE REPORT") != std::string::npos);
+
+            if (std::filesystem::exists(fileName))
+            {
+                std::filesystem::remove(fileName);
+            }
+        }
+
+        TEST_METHOD(GenerateReport_FileContainsPilotName)
+        {
+            ScheduleRepository repo;
+            repo.LoadSampleData();
+
+            ReportService reportService;
+            std::string fileName = "test_monthly_report.txt";
+
+            bool result = reportService.GenerateReport(repo, fileName);
+            Assert::IsTrue(result);
+            Assert::IsTrue(std::filesystem::exists(fileName));
+
+            std::ifstream inputFile(fileName);
+            Assert::IsTrue(inputFile.is_open());
+
+            std::string content(
+                (std::istreambuf_iterator<char>(inputFile)),
+                std::istreambuf_iterator<char>());
+
+            inputFile.close();
+
+            Assert::IsTrue(content.find("Captain Smith") != std::string::npos);
+
+            if (std::filesystem::exists(fileName))
+            {
+                std::filesystem::remove(fileName);
+            }
+        }
+
+        TEST_METHOD(GenerateReport_FileContainsFlightDetails)
+        {
+            ScheduleRepository repo;
+            repo.LoadSampleData();
+
+            ReportService reportService;
+            std::string fileName = "test_monthly_report.txt";
+
+            bool result = reportService.GenerateReport(repo, fileName);
+            Assert::IsTrue(result);
+            Assert::IsTrue(std::filesystem::exists(fileName));
+
+            std::ifstream inputFile(fileName);
+            Assert::IsTrue(inputFile.is_open());
+
+            std::string content(
+                (std::istreambuf_iterator<char>(inputFile)),
+                std::istreambuf_iterator<char>());
+
+            inputFile.close();
+
+            Assert::IsTrue(content.find("Toronto") != std::string::npos);
+            Assert::IsTrue(content.find("New York") != std::string::npos);
+
+            if (std::filesystem::exists(fileName))
+            {
+                std::filesystem::remove(fileName);
+            }
+        }
+
+        TEST_METHOD(GenerateReport_EmptyRepository_StillCreatesFile)
+        {
+            ScheduleRepository repo;
+
+            ReportService reportService;
+            std::string fileName = "test_empty_report.txt";
+
+            bool result = reportService.GenerateReport(repo, fileName);
+
+            Assert::IsTrue(result);
+            Assert::IsTrue(std::filesystem::exists(fileName));
+
+            if (std::filesystem::exists(fileName))
+            {
+                std::filesystem::remove(fileName);
+            }
+        }
+
+        TEST_METHOD(GenerateReport_FileCanBeOpenedAfterCreation)
+        {
+            ScheduleRepository repo;
+            repo.LoadSampleData();
+
+            ReportService reportService;
+            std::string fileName = "test_monthly_report.txt";
+
+            bool result = reportService.GenerateReport(repo, fileName);
+
+            Assert::IsTrue(result);
+            Assert::IsTrue(std::filesystem::exists(fileName));
+
+            std::ifstream inputFile(fileName);
+            Assert::IsTrue(inputFile.is_open());
+
+            inputFile.close();
+
+            if (std::filesystem::exists(fileName))
+            {
+                std::filesystem::remove(fileName);
+            }
+        }
+
         TEST_METHOD(GenerateReport_CreatesFileSuccessfully)
         {
             ScheduleRepository repo;
