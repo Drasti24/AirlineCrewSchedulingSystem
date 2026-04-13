@@ -4,6 +4,7 @@
 #include "Common.h"
 #include "PacketTypes.h"
 #include "Constants.h"
+#include <vector>
 
 struct PacketHeader
 {
@@ -96,3 +97,15 @@ struct UpdateFlightPacket
     int pilotId;
     FlightInfo flight;
 };
+
+struct ScheduleDataPacket
+{
+    PacketHeader header;
+    int statusCode;
+    int pilotId;
+    char pilotName[MAX_NAME_LENGTH];
+    std::vector<FlightInfo> flights;
+};
+
+std::vector<char> SerializeScheduleDataPacket(const ScheduleDataPacket& packet);
+bool DeserializeScheduleDataPacket(const std::vector<char>& buffer, ScheduleDataPacket& packet);

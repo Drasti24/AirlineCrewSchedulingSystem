@@ -701,4 +701,72 @@ namespace AirlineCrewTests
             Assert::IsFalse(isValid);
         }
     };
+
+    TEST_CLASS(PacketSerializationTests)
+    {
+    public:
+
+        TEST_METHOD(SerializeDeserializeScheduleDataPacket_PreservesFlightData)
+        {
+            ScheduleDataPacket original{};
+            original.header.packetType = GET_SCHEDULE_RESPONSE;
+            original.header.dataSize = 0;
+            original.statusCode = STATUS_OK;
+            original.pilotId = 101;
+            strcpy_s(original.pilotName, sizeof(original.pilotName), "Captain Smith");
+
+            FlightInfo flight1{};
+            flight1.flightId = 1001;
+            strcpy_s(flight1.origin, sizeof(flight1.origin), "Toronto");
+            strcpy_s(flight1.destination, sizeof(flight1.destination), "New York");
+            strcpy_s(flight1.date, sizeof(flight1.date), "2026-04-13");
+
+            FlightInfo flight2{};
+            flight2.flightId = 1002;
+            strcpy_s(flight2.origin, sizeof(flight2.origin), "Montreal");
+            strcpy_s(flight2.destination, sizeof(flight2.destination), "Chicago");
+            strcpy_s(flight2.date, sizeof(flight2.date), "2026-04-14");
+
+            original.flights.push_back(flight1);
+            original.flights.push_back(flight2);
+
+            std::vector<char> buffer = SerializeScheduleDataPacket(original);
+
+            ScheduleDataPacket restored{};
+            bool success = DeserializeScheduleDataPacket(buffer, restored);
+
+            Assert::IsTrue(success);
+            Assert::AreEqual((int)GET_SCHEDULE_RESPONSE, restored.header.packetType);
+            Assert::AreEqual((int)STATUS_OK, restored.statusCode);
+            Assert::AreEqual(101, restored.pilotId);
+            Assert::AreEqual(0, strcmp(restored.pilotName, "Captain Smith"));
+            Assert::AreEqual((size_t)2, restored.flights.size());
+            Assert::AreEqual(1001, restored.flights[0].flightId);
+            Assert::AreEqual(0, strcmp(restored.flights[0].origin, "Toronto"));
+            Assert::AreEqual(1002, restored.flights[1].flightId);
+            Assert::AreEqual(0, strcmp(restored.flights[1].destination, "Chicago"));
+        }
+
+        TEST_METHOD(SerializeDeserializeScheduleDataPacket_EmptyFlightList_Works)
+        {
+            ScheduleDataPacket original{};
+            original.header.packetType = GET_SCHEDULE_RESPONSE;
+            original.header.dataSize = 0;
+            original.statusCode = STATUS_OK;
+            original.pilotId = 102;
+            strcpy_s(original.pilotName, sizeof(original.pilotName), "Captain Johnson");
+
+            std::vector<char> buffer = SerializeScheduleDataPacket(original);
+
+            ScheduleDataPacket restored{};
+            bool success = DeserializeScheduleDataPacket(buffer, restored);
+
+            Assert::IsTrue(success);
+            Assert::AreEqual((int)GET_SCHEDULE_RESPONSE, restored.header.packetType);
+            Assert::AreEqual((int)STATUS_OK, restored.statusCode);
+            Assert::AreEqual(102, restored.pilotId);
+            Assert::AreEqual(0, strcmp(restored.pilotName, "Captain Johnson"));
+            Assert::AreEqual((size_t)0, restored.flights.size());
+        }
+    };
 }
