@@ -68,13 +68,26 @@ bool ScheduleRepository::AssignFlight(int pilotId, const FlightInfo& flight)
     {
         if (schedule.pilotId == pilotId)
         {
+            for (const auto& existingFlight : schedule.flights)
+            {
+                bool sameFlightId = existingFlight.flightId == flight.flightId;
+                bool sameOrigin = strcmp(existingFlight.origin, flight.origin) == 0;
+                bool sameDestination = strcmp(existingFlight.destination, flight.destination) == 0;
+                bool sameDate = strcmp(existingFlight.date, flight.date) == 0;
+
+                if (sameFlightId || (sameOrigin && sameDestination && sameDate))
+                {
+                    return false;
+                }
+            }
+
             schedule.flights.push_back(flight);
             return true;
         }
     }
+
     return false;
 }
-
 bool ScheduleRepository::RemoveFlight(int pilotId, int flightId)
 {
     for (auto& schedule : schedules)

@@ -47,7 +47,6 @@ bool ClientConnection::ConnectToServer()
         return false;
     }
 
-    cout << "Connected to server successfully.\n";
     Logger::Log("client_log.txt", "INFO", "Connected to server");
     return true;
 }

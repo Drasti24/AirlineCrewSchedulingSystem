@@ -480,6 +480,21 @@ namespace AirlineCrewTests
                 std::filesystem::remove(fileName);
             }
         }
+        TEST_METHOD(AssignFlight_DuplicateFlight_ReturnsFalse)
+        {
+            ScheduleRepository repo;
+            repo.LoadSampleData();
+
+            FlightInfo duplicateFlight{};
+            duplicateFlight.flightId = 101;
+            strcpy_s(duplicateFlight.origin, sizeof(duplicateFlight.origin), "Toronto");
+            strcpy_s(duplicateFlight.destination, sizeof(duplicateFlight.destination), "New York");
+            strcpy_s(duplicateFlight.date, sizeof(duplicateFlight.date), "2026-03-30");
+
+            bool success = repo.AssignFlight(101, duplicateFlight);
+
+            Assert::IsFalse(success);
+        }
     };
 
     TEST_CLASS(StateMachineTests)

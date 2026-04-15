@@ -277,19 +277,29 @@ int main()
             response.header.packetType = OPERATION_RESPONSE;
             response.header.dataSize = sizeof(response);
 
-            if (success)
-            {
-                response.statusCode = STATUS_OK;
-                strcpy_s(response.message, sizeof(response.message), "Flight assigned successfully");
-                cout << "Flight assigned successfully to Pilot ID " << assignPacket.pilotId << ".\n";
-            }
-            else
+            PilotSchedule pilotSchedule{};
+            bool pilotExists = repository.GetScheduleByPilotId(assignPacket.pilotId, pilotSchedule);
+
+            if (!pilotExists)
             {
                 response.statusCode = STATUS_NOT_FOUND;
                 strcpy_s(response.message, sizeof(response.message), "Pilot not found");
-                cout << "Pilot ID " << assignPacket.pilotId << " not found for assignment.\n";
             }
+            else
+            {
+                bool success = repository.AssignFlight(assignPacket.pilotId, assignPacket.flight);
 
+                if (success)
+                {
+                    response.statusCode = STATUS_OK;
+                    strcpy_s(response.message, sizeof(response.message), "Flight assigned successfully");
+                }
+                else
+                {
+                    response.statusCode = STATUS_INVALID;
+                    strcpy_s(response.message, sizeof(response.message), "Duplicate or conflicting flight assignment");
+                }
+            }
             if (!server.SendData(reinterpret_cast<const char*>(&response), sizeof(response)))
             {
                 cout << "Failed to send assign flight response.\n";
