@@ -185,11 +185,42 @@ int main()
                     "GET_SCHEDULE_REQUEST PilotID=" + to_string(pilotId)
                 );
 
-                ScheduleResponsePacket scheduleResponse{};
-                if (!client.ReceiveData(reinterpret_cast<char*>(&scheduleResponse), sizeof(scheduleResponse)))
+                PacketHeader responseHeader{};
+                if (!client.ReceiveData(reinterpret_cast<char*>(&responseHeader), sizeof(responseHeader)))
                 {
-                    cout << "Failed to receive schedule response.\n";
-                    Logger::Log("client_log.txt", "ERROR", "Failed to receive schedule response");
+                    cout << "Failed to receive schedule response header.\n";
+                    Logger::Log("client_log.txt", "ERROR", "Failed to receive schedule response header");
+                    client.Close();
+                    return 1;
+                }
+
+                if (responseHeader.packetType != GET_SCHEDULE_RESPONSE ||
+                    responseHeader.dataSize < static_cast<int>(sizeof(PacketHeader)))
+                {
+                    cout << "Invalid schedule response received.\n";
+                    Logger::Log("client_log.txt", "ERROR", "Invalid schedule response header");
+                    client.Close();
+                    return 1;
+                }
+
+                std::vector<char> responseBuffer(responseHeader.dataSize);
+                memcpy(responseBuffer.data(), &responseHeader, sizeof(PacketHeader));
+
+                if (!client.ReceiveData(
+                    responseBuffer.data() + sizeof(PacketHeader),
+                    responseHeader.dataSize - static_cast<int>(sizeof(PacketHeader))))
+                {
+                    cout << "Failed to receive full serialized schedule response.\n";
+                    Logger::Log("client_log.txt", "ERROR", "Failed to receive full serialized schedule response");
+                    client.Close();
+                    return 1;
+                }
+
+                ScheduleDataPacket scheduleResponse{};
+                if (!DeserializeScheduleDataPacket(responseBuffer, scheduleResponse))
+                {
+                    cout << "Failed to deserialize schedule response.\n";
+                    Logger::Log("client_log.txt", "ERROR", "Failed to deserialize schedule response");
                     client.Close();
                     return 1;
                 }
@@ -197,9 +228,9 @@ int main()
                 Logger::Log(
                     "client_log.txt",
                     "RX",
-                    "GET_SCHEDULE_RESPONSE PilotID=" + to_string(scheduleResponse.pilotId) +
+                    "SCHEDULE_DATA_PACKET PilotID=" + to_string(scheduleResponse.pilotId) +
                     " Status=" + GetStatusText(scheduleResponse.statusCode) +
-                    " FlightCount=" + to_string(scheduleResponse.flightCount)
+                    " FlightCount=" + to_string(scheduleResponse.flights.size())
                 );
 
                 if (scheduleResponse.statusCode == STATUS_NOT_FOUND)
@@ -217,28 +248,21 @@ int main()
 
                 cout << "\nPilot ID: " << scheduleResponse.pilotId << endl;
                 cout << "Pilot Name: " << scheduleResponse.pilotName << endl;
-                cout << "Flights Assigned: " << scheduleResponse.flightCount << endl;
+                cout << "Flights Assigned: " << scheduleResponse.flights.size() << endl;
 
-                if (scheduleResponse.flightCount == 0)
+                if (scheduleResponse.flights.empty())
                 {
                     cout << "No flights assigned.\n";
                 }
 
-                for (int i = 0; i < scheduleResponse.flightCount; i++)
+                for (size_t i = 0; i < scheduleResponse.flights.size(); i++)
                 {
-                    FlightInfo flight{};
-                    if (!client.ReceiveData(reinterpret_cast<char*>(&flight), sizeof(flight)))
-                    {
-                        cout << "Failed to receive flight data.\n";
-                        Logger::Log("client_log.txt", "ERROR", "Failed to receive flight data");
-                        client.Close();
-                        return 1;
-                    }
+                    const FlightInfo& flight = scheduleResponse.flights[i];
 
                     Logger::Log(
                         "client_log.txt",
                         "RX",
-                        "FLIGHT_INFO FlightID=" + to_string(flight.flightId) +
+                        "SCHEDULE_DATA_PACKET_FLIGHT FlightID=" + to_string(flight.flightId) +
                         " Origin=" + string(flight.origin) +
                         " Destination=" + string(flight.destination) +
                         " Date=" + string(flight.date)
@@ -253,6 +277,7 @@ int main()
 
                 cout << "\nYou can return to the menu now.\n";
                 break;
+
             }
         }
         else if (choice == 2)
@@ -559,11 +584,42 @@ int main()
                 "GET_SCHEDULE_REQUEST PilotID=" + to_string(pilotId) + " [Validation for Update Flight]"
             );
 
-            ScheduleResponsePacket scheduleResponse{};
-            if (!client.ReceiveData(reinterpret_cast<char*>(&scheduleResponse), sizeof(scheduleResponse)))
+            PacketHeader responseHeader{};
+            if (!client.ReceiveData(reinterpret_cast<char*>(&responseHeader), sizeof(responseHeader)))
             {
-                cout << "Failed to receive pilot validation response.\n";
-                Logger::Log("client_log.txt", "ERROR", "Failed to receive pilot validation response for update flight");
+                cout << "Failed to receive pilot validation response header.\n";
+                Logger::Log("client_log.txt", "ERROR", "Failed to receive pilot validation response header");
+                client.Close();
+                return 1;
+            }
+
+            if (responseHeader.packetType != GET_SCHEDULE_RESPONSE ||
+                responseHeader.dataSize < static_cast<int>(sizeof(PacketHeader)))
+            {
+                cout << "Invalid pilot validation response received.\n";
+                Logger::Log("client_log.txt", "ERROR", "Invalid pilot validation response header");
+                client.Close();
+                return 1;
+            }
+
+            std::vector<char> responseBuffer(responseHeader.dataSize);
+            memcpy(responseBuffer.data(), &responseHeader, sizeof(PacketHeader));
+
+            if (!client.ReceiveData(
+                responseBuffer.data() + sizeof(PacketHeader),
+                responseHeader.dataSize - static_cast<int>(sizeof(PacketHeader))))
+            {
+                cout << "Failed to receive full pilot validation response.\n";
+                Logger::Log("client_log.txt", "ERROR", "Failed to receive full pilot validation response");
+                client.Close();
+                return 1;
+            }
+
+            ScheduleDataPacket scheduleResponse{};
+            if (!DeserializeScheduleDataPacket(responseBuffer, scheduleResponse))
+            {
+                cout << "Failed to deserialize pilot validation response.\n";
+                Logger::Log("client_log.txt", "ERROR", "Failed to deserialize pilot validation response");
                 client.Close();
                 return 1;
             }
@@ -571,9 +627,9 @@ int main()
             Logger::Log(
                 "client_log.txt",
                 "RX",
-                "GET_SCHEDULE_RESPONSE PilotID=" + to_string(scheduleResponse.pilotId) +
+                "SCHEDULE_DATA_PACKET PilotID=" + to_string(scheduleResponse.pilotId) +
                 " Status=" + GetStatusText(scheduleResponse.statusCode) +
-                " FlightCount=" + to_string(scheduleResponse.flightCount) +
+                " FlightCount=" + to_string(scheduleResponse.flights.size()) +
                 " [Validation for Update Flight]"
             );
 
@@ -592,32 +648,24 @@ int main()
             }
 
             cout << "\nPilot found: " << scheduleResponse.pilotName << endl;
-            cout << "Flights Assigned: " << scheduleResponse.flightCount << endl;
+            cout << "Flights Assigned: " << scheduleResponse.flights.size() << endl;
 
-            if (scheduleResponse.flightCount == 0)
+            if (scheduleResponse.flights.empty())
             {
                 cout << "This pilot has no flights to update.\n";
                 Logger::Log("client_log.txt", "INFO", "Update flight cancelled because pilot has no assigned flights");
                 continue;
             }
 
-            for (int i = 0; i < scheduleResponse.flightCount; i++)
+            for (size_t i = 0; i < scheduleResponse.flights.size(); i++)
             {
-                FlightInfo flight{};
-                if (!client.ReceiveData(reinterpret_cast<char*>(&flight), sizeof(flight)))
-                {
-                    cout << "Failed to receive flight data.\n";
-                    Logger::Log("client_log.txt", "ERROR", "Failed to receive flight data during update validation");
-                    client.Close();
-                    return 1;
-                }
-
+                const FlightInfo& flight = scheduleResponse.flights[i];
                 existingFlights.push_back(flight);
 
                 Logger::Log(
                     "client_log.txt",
                     "RX",
-                    "FLIGHT_INFO FlightID=" + to_string(flight.flightId) +
+                    "SCHEDULE_DATA_PACKET_FLIGHT FlightID=" + to_string(flight.flightId) +
                     " Origin=" + string(flight.origin) +
                     " Destination=" + string(flight.destination) +
                     " Date=" + string(flight.date)

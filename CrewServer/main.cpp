@@ -162,92 +162,76 @@ int main()
             PilotSchedule pilotSchedule{};
             bool found = repository.GetScheduleByPilotId(scheduleRequest.pilotId, pilotSchedule);
 
+            ScheduleDataPacket schedulePacket{};
+            schedulePacket.header.packetType = GET_SCHEDULE_RESPONSE;
+            schedulePacket.header.dataSize = 0; // temporary until serialized
+            schedulePacket.pilotId = scheduleRequest.pilotId;
+
             if (found)
             {
-                scheduleResponse.statusCode = STATUS_OK;
-                strcpy_s(scheduleResponse.pilotName, sizeof(scheduleResponse.pilotName), pilotSchedule.pilotName);
-                scheduleResponse.flightCount = static_cast<int>(pilotSchedule.flights.size());
+                schedulePacket.statusCode = STATUS_OK;
+                strcpy_s(schedulePacket.pilotName, sizeof(schedulePacket.pilotName), pilotSchedule.pilotName);
+                schedulePacket.flights = pilotSchedule.flights;
+            }
+            else
+            {
+                schedulePacket.statusCode = STATUS_NOT_FOUND;
+                strcpy_s(schedulePacket.pilotName, sizeof(schedulePacket.pilotName), "Unknown");
+                schedulePacket.flights.clear();
+            }
 
-                if (!server.SendData(reinterpret_cast<const char*>(&scheduleResponse), sizeof(scheduleResponse)))
-                {
-                    cout << "Failed to send schedule response header.\n";
-                    Logger::Log("server_log.txt", "ERROR", "Failed to send schedule response");
-                    stateMachine.SetState(STATE_ERROR);
-                    cout << "Current server state: "
-                        << ServerStateToString(stateMachine.GetCurrentState()) << endl;
-                    break;
-                }
+            // First serialize once to calculate real total size
+            std::vector<char> serialized = SerializeScheduleDataPacket(schedulePacket);
 
+            // Now set correct size in header and serialize again
+            schedulePacket.header.dataSize = static_cast<int>(serialized.size());
+            serialized = SerializeScheduleDataPacket(schedulePacket);
+
+            if (!server.SendData(serialized.data(), static_cast<int>(serialized.size())))
+            {
+                cout << "Failed to send schedule packet.\n";
+                Logger::Log("server_log.txt", "ERROR", "Failed to send serialized schedule packet");
+                stateMachine.SetState(STATE_ERROR);
+                cout << "Current server state: "
+                    << ServerStateToString(stateMachine.GetCurrentState()) << endl;
+                break;
+            }
+
+            Logger::Log(
+                "server_log.txt",
+                "TX",
+                "SCHEDULE_DATA_PACKET PilotID=" + to_string(scheduleRequest.pilotId) +
+                " Status=" + GetStatusText(schedulePacket.statusCode) +
+                " FlightCount=" + to_string(schedulePacket.flights.size())
+            );
+
+            for (const auto& flight : schedulePacket.flights)
+            {
                 Logger::Log(
                     "server_log.txt",
                     "TX",
-                    "GET_SCHEDULE_RESPONSE PilotID=" + to_string(scheduleRequest.pilotId) +
-                    " Status=" + GetStatusText(scheduleResponse.statusCode) +
-                    " FlightCount=" + to_string(scheduleResponse.flightCount)
+                    "SCHEDULE_DATA_PACKET_FLIGHT FlightID=" + to_string(flight.flightId) +
+                    " Origin=" + string(flight.origin) +
+                    " Destination=" + string(flight.destination) +
+                    " Date=" + string(flight.date)
                 );
+            }
 
+            if (found)
+            {
                 stateMachine.SetState(STATE_SENDING_SCHEDULE);
                 cout << "Current server state: "
                     << ServerStateToString(stateMachine.GetCurrentState()) << endl;
 
-                bool sendFailed = false;
-
-                for (const auto& flight : pilotSchedule.flights)
-                {
-                    if (!server.SendData(reinterpret_cast<const char*>(&flight), sizeof(flight)))
-                    {
-                        cout << "Failed to send flight information.\n";
-                        Logger::Log("server_log.txt", "ERROR", "Failed to send flight info");
-                        stateMachine.SetState(STATE_ERROR);
-                        sendFailed = true;
-                        break;
-                    }
-
-                    Logger::Log(
-                        "server_log.txt",
-                        "TX",
-                        "FLIGHT_INFO FlightID=" + to_string(flight.flightId) +
-                        " Origin=" + string(flight.origin) +
-                        " Destination=" + string(flight.destination) +
-                        " Date=" + string(flight.date)
-                    );
-                }
-
-                if (sendFailed)
-                {
-                    break;
-                }
-
                 cout << "Schedule sent successfully for Pilot ID " << scheduleRequest.pilotId << ".\n";
-                stateMachine.SetState(STATE_AUTHENTICATED);
             }
             else
             {
-                scheduleResponse.statusCode = STATUS_NOT_FOUND;
-                strcpy_s(scheduleResponse.pilotName, sizeof(scheduleResponse.pilotName), "Unknown");
-                scheduleResponse.flightCount = 0;
-
-                if (!server.SendData(reinterpret_cast<const char*>(&scheduleResponse), sizeof(scheduleResponse)))
-                {
-                    cout << "Failed to send not found response.\n";
-                    Logger::Log("server_log.txt", "ERROR", "Failed to send not found response");
-                    stateMachine.SetState(STATE_ERROR);
-                    cout << "Current server state: "
-                        << ServerStateToString(stateMachine.GetCurrentState()) << endl;
-                    break;
-                }
-
-                Logger::Log(
-                    "server_log.txt",
-                    "TX",
-                    "GET_SCHEDULE_RESPONSE PilotID=" + to_string(scheduleRequest.pilotId) +
-                    " Status=" + GetStatusText(scheduleResponse.statusCode) +
-                    " FlightCount=0"
-                );
-
                 cout << "Pilot ID " << scheduleRequest.pilotId << " not found.\n";
-                stateMachine.SetState(STATE_AUTHENTICATED);
             }
+
+            stateMachine.SetState(STATE_AUTHENTICATED);
+
         }
         else if (header.packetType == ASSIGN_FLIGHT_REQUEST)
         {
@@ -293,19 +277,29 @@ int main()
             response.header.packetType = OPERATION_RESPONSE;
             response.header.dataSize = sizeof(response);
 
-            if (success)
-            {
-                response.statusCode = STATUS_OK;
-                strcpy_s(response.message, sizeof(response.message), "Flight assigned successfully");
-                cout << "Flight assigned successfully to Pilot ID " << assignPacket.pilotId << ".\n";
-            }
-            else
+            PilotSchedule pilotSchedule{};
+            bool pilotExists = repository.GetScheduleByPilotId(assignPacket.pilotId, pilotSchedule);
+
+            if (!pilotExists)
             {
                 response.statusCode = STATUS_NOT_FOUND;
                 strcpy_s(response.message, sizeof(response.message), "Pilot not found");
-                cout << "Pilot ID " << assignPacket.pilotId << " not found for assignment.\n";
             }
+            else
+            {
+                bool success = repository.AssignFlight(assignPacket.pilotId, assignPacket.flight);
 
+                if (success)
+                {
+                    response.statusCode = STATUS_OK;
+                    strcpy_s(response.message, sizeof(response.message), "Flight assigned successfully");
+                }
+                else
+                {
+                    response.statusCode = STATUS_INVALID;
+                    strcpy_s(response.message, sizeof(response.message), "Duplicate or conflicting flight assignment");
+                }
+            }
             if (!server.SendData(reinterpret_cast<const char*>(&response), sizeof(response)))
             {
                 cout << "Failed to send assign flight response.\n";

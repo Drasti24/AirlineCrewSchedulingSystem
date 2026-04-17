@@ -132,6 +132,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\Logger.cpp" />
+    <ClCompile Include="..\Packets.cpp" />
     <ClCompile Include="..\StateMachine.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ReportService.cpp" />
