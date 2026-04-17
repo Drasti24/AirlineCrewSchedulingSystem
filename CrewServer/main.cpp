@@ -271,7 +271,7 @@ int main()
             cout << "Current server state: "
                 << ServerStateToString(stateMachine.GetCurrentState()) << endl;
 
-            bool success = repository.AssignFlight(assignPacket.pilotId, assignPacket.flight);
+            //bool success = repository.AssignFlight(assignPacket.pilotId, assignPacket.flight);
 
             OperationResponsePacket response{};
             response.header.packetType = OPERATION_RESPONSE;
